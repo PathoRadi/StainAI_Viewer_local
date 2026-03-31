@@ -36,7 +36,7 @@ StainAI_Viewer/
 │   └── MY12@640nFR.pt
 │
 ├── media/
-│   └── images/
+│   
 │
 ├── myapp/
 │   ├── views.py
