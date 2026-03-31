@@ -64,6 +64,7 @@ git clone https://github.com/PathoRadi/StainAI_Viewer_local.git
 ### 2️⃣ Create a Conda Environment
 
 Install Anaconda:
+  
   👉 https://www.anaconda.com/download
 
 Open Anaconda Prompt to create a new environment
@@ -87,8 +88,9 @@ Change to the project directory where `requirements.txt` is located:
 ```
 cd "D:\github\StainAI_Viewer_local"
 ```
-- To obtain the path, right-click the folder and select "Copy as path".
 
+- To obtain the path, right-click the folder and select "Copy as path".
+  
 Install dependencies
 ```
 pip install -r requirements.txt
