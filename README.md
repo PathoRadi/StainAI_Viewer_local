@@ -56,8 +56,7 @@ StainAI_Viewer/
 ### 1️⃣ Clone repository
 
 ```
-git clone https://github.com/YOUR_USERNAME/stainai-viewer.git
-cd stainai-viewer
+git clone https://github.com/PathoRadi/StainAI_Viewer_local.git
 ```
 
 ---
@@ -102,18 +101,6 @@ brew install vips
 ```
 sudo apt install libvips
 ```
-
----
-
-## 🧠 Model Setup
-
-Place your trained YOLO model here:
-
-```
-model/MY12@640nFR.pt
-```
-
-> ⚠️ Model file is not included in this repository
 
 ---
 
@@ -189,8 +176,7 @@ result/
 
 ## 👤 Author
 
-Darren Liu
-UCSD Economics + Data Science
+Da-Yuan Liu
 Howard University Molecular Imaging Lab
 
 ---
