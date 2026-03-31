@@ -1,0 +1,137 @@
+/* static/css/progress.css */
+
+/* ----- Progress Overlays ----- */
+#progress-overlay,
+#progress-overlay1 {
+  display: none;            
+  position: fixed;
+  inset: 0;                 /* top/right/bottom/left: 0 */
+  height: 100dvh;           
+  background: rgba(0,0,0,0.6);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+#progress-overlay.active,
+#progress-overlay1.active {
+  display: flex !important;
+}
+#progress-overlay1[style*="display: block"] {
+  display: flex !important;
+}
+@keyframes neonGlow {
+  0% {
+    color: rgb(200, 200, 200);
+    text-shadow:
+      0 0 4px rgb(200, 200, 200),
+      0 0 10px rgb(200, 200, 200),
+      0 0 20px rgb(200, 200, 200),
+      0 0 40px rgb(200, 200, 200);
+  }
+  100% {
+    color: rgb(180,180,180);
+    text-shadow:
+      0 0 8px rgb(180,180,180),
+      0 0 16px rgb(180,180,180),
+      0 0 32px rgb(180,180,180),
+      0 0 48px rgb(180,180,180);
+  }
+}
+.progress-text {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 800;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  animation: neonGlow 1.5s ease-in-out infinite alternate;
+  text-align: center;
+}
+
+
+
+
+
+
+
+
+/* ===== 只作用於 #progress-overlay 的三/四段式時間軸 ===== */
+#progress-overlay .stage-timeline {
+  --track-h: 10px;
+  --node-size: 30px;
+  --rocket-size: 56px;
+  --travel-ms: 850ms;
+  position: relative;
+  width: min(720px, 90vw);
+  padding: 28px 8px 30px;
+}
+#progress-overlay .stage-track {
+  position: relative;
+  height: var(--track-h);
+  background: linear-gradient(180deg, #dadde3, #b9bec7);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
+}
+#progress-overlay .stage-track::before {
+  content: "";
+  position: absolute; inset: 0;
+  width: var(--progress-pct, 0%);             /* 由 JS 寫入 0/25/50/75/100% */
+  background: linear-gradient(180deg, #7aa2ff, #3b6bff);
+  border-radius: 999px;
+  transition: width var(--travel-ms) cubic-bezier(.22,.61,.36,1);
+}
+
+#progress-overlay .stage-node {
+  position: absolute;
+  top: calc(var(--track-h) / -2 + 1px);
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #e6e9ef;
+  font-weight: 700;
+  font-size: 12px;
+}
+#progress-overlay .stage-node[data-stage="1"] { left: 0%;   }
+#progress-overlay .stage-node[data-stage="2"] { left: 25%;  }
+#progress-overlay .stage-node[data-stage="3"] { left: 50%;  }
+#progress-overlay .stage-node[data-stage="4"] { left: 75%;  }
+#progress-overlay .stage-node[data-stage="5"] { left: 100%; }
+
+#progress-overlay .stage-name {
+  position: absolute;
+  top: calc(var(--node-size) / 2 + 30px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+  font-size: 20px;
+  opacity: .9;
+  white-space: nowrap;
+}
+#progress-overlay .stage-node.active .stage-badge {
+  background: #5b8cff;
+  border-color: #fff;
+}
+
+
+#progress-overlay .stage-icon {
+  position: absolute;
+  top: calc(var(--track-h) / 2);
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: var(--rocket-size);
+  height: var(--rocket-size);
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.35));
+  transition: left var(--travel-ms) cubic-bezier(.22,.61,.36,1), transform 240ms ease;
+}
+#progress-overlay .stage-icon.bump { animation: arrive-bounce .55s ease-out; }
+@keyframes arrive-bounce {
+  0%   { transform: translate(-50%, -52%) scale(1.00) }
+  40%  { transform: translate(-50%, -58%) scale(1.04) }
+  100% { transform: translate(-50%, -50%) scale(1.00) }
+}
+.screenshotting *, .screenshotting *::before, .screenshotting *::after {
+  animation: none !important;
+  transition: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
