@@ -1,6 +1,4 @@
-# StainAI_Viewer_local
-
-# 🧠 StainAI Viewer
+# 🧠 StainAI_Viewer_local
 
 A web-based microscopy image analysis tool for grayscale preprocessing and YOLO-based object detection on large-scale images.
 
