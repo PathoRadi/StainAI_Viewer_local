@@ -166,6 +166,127 @@ def _list_project_names():
 
 
 
+
+# -----------------------------------
+# Helper functions for History stack
+# -----------------------------------
+def _find_first_file(folder: str):
+    if not os.path.isdir(folder):
+        return None
+
+    for fn in sorted(os.listdir(folder), key=str.lower):
+        path = os.path.join(folder, fn)
+        if os.path.isfile(path) and not fn.startswith("."):
+            return path
+    return None
+
+def _build_sidebar_item_from_image_dir(image_dir: str, image_name: str, project_name: str = None):
+    """
+    Build sidebar item from:
+      1) media/images/<image_name>
+      2) media/<project_name>/<image_name>
+    """
+
+    result_path = os.path.join(image_dir, "_detect_result.json")
+
+    boxes = []
+    orig_size = None
+    disp_size = None
+    display_url = None
+
+    # 1) Prefer detection result if it exists
+    if os.path.exists(result_path):
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            boxes = data.get("boxes") or []
+            orig_size = data.get("orig_size")
+            disp_size = data.get("display_size")
+            display_url = data.get("display_url")
+        except Exception:
+            logger.exception("Failed to read %s", result_path)
+
+    # 2) Fallback: use display image / original image if detect_result not found
+    if not display_url:
+        display_dir = os.path.join(image_dir, "display")
+        original_dir = os.path.join(image_dir, "original")
+
+        display_file = _find_first_file(display_dir)
+        original_file = _find_first_file(original_dir)
+
+        fallback_path = display_file or original_file
+        if fallback_path:
+            display_url = _to_media_url(fallback_path)
+
+            try:
+                w, h = _image_size_wh(fallback_path)
+                # 前端目前 handleDetectionResult / history 用的順序是 [h, w]
+                disp_size = [h, w]
+                orig_size = [h, w]
+            except Exception:
+                logger.exception("Failed to read fallback image size: %s", fallback_path)
+
+    # 3) name 顯示可直接用 image_name
+    return {
+        "dir": image_name,
+        "name": image_name,
+        "projectName": project_name,
+        "displayUrl": display_url,
+        "boxes": boxes,
+        "origSize": orig_size,
+        "dispSize": disp_size,
+        "demo": False,
+    }
+
+@require_GET
+def list_sidebar_items(request):
+    items = []
+
+    # ---------------------------
+    # A) media/images/*
+    # ---------------------------
+    images_root = _images_root()
+    if os.path.isdir(images_root):
+        for image_name in sorted(os.listdir(images_root), key=str.lower):
+            image_dir = os.path.join(images_root, image_name)
+            if not os.path.isdir(image_dir):
+                continue
+
+            item = _build_sidebar_item_from_image_dir(
+                image_dir=image_dir,
+                image_name=image_name,
+                project_name=None
+            )
+            items.append(item)
+
+    # ---------------------------
+    # B) media/<project_name>/*
+    # ---------------------------
+    for project_name in _list_project_names():
+        project_dir = _project_dir(project_name)
+        if not os.path.isdir(project_dir):
+            continue
+
+        for image_name in sorted(os.listdir(project_dir), key=str.lower):
+            image_dir = os.path.join(project_dir, image_name)
+            if not os.path.isdir(image_dir):
+                continue
+
+            item = _build_sidebar_item_from_image_dir(
+                image_dir=image_dir,
+                image_name=image_name,
+                project_name=project_name
+            )
+            items.append(item)
+
+    return JsonResponse({
+        "success": True,
+        "items": items
+    })
+
+
+
 # ---------------------------
 # Upload Image
 # ---------------------------
@@ -187,46 +308,7 @@ def get_unique_image_name(image_name):
 
     return candidate
 
-# @csrf_exempt
-# def upload_image(request):
-#     """
-#     Receive upload, save to media/<image_name>/original/,
-#     If any side >20000, do half resize; return MEDIA URL for direct display.
-#     """
-#     # check request method is POST and file is in request.FILES
-#     if request.method == 'POST' and request.FILES.get('image'):
-#         # ----------------------------------------------------------------------
-#         #      Step 1: Read User Uploaded Image and Create Image Folder
-#         # ----------------------------------------------------------------------
-#         images_dir = _images_root()                                                 # Full path of the folder to store all images, e.g. /home/site/wwwroot/media/images/
-#         os.makedirs(images_dir, exist_ok=True)                                      # Create folder to store all images, e.g. /home/site/wwwroot/media/images/
 
-#         # User uploaded image
-#         img = request.FILES['image']                                                # Get user uploaded image, eg. "sample.png"
-#         upload_name = os.path.splitext(img.name)[0]                                 # Get user uploaded image name without extension, e.g. "sample" from "sample.png"
-
-#         # Create folder for the uploaded image
-#         image_name = get_unique_image_name(upload_name)                             # Get unique folder name for the user uploaded image, e.g. "sample_1" if "sample" already exists, otherwise "sample"
-#         image_dir = _image_dir(image_name)                                          # Full path of the user uploaded image folder, e.g. /home/site/wwwroot/media/images/{sample or sample_1}/
-#         os.makedirs(image_dir, exist_ok=True)                                       # Create folder for the user uploaded image, e.g. /home/site/wwwroot/media/images/{sample or sample_1}/
-
-        
-#         # ----------------------------------------------------------------------
-#         #      Step 2: Save User Uploaded Image into "Original" Subfolder
-#         # ----------------------------------------------------------------------
-#         original_dir = os.path.join(image_dir, 'original')                          # Full path of the original image folder, e.g. /home/site/wwwroot/media/{sample or sample_1}/original/
-#         os.makedirs(original_dir, exist_ok=True)                                    # Create folder for the original image, e.g. /home/site/wwwroot/media/{sample or sample_1}/original/
-#         original_path = os.path.join(original_dir, img.name)                        # Full path of the original image, e.g. /home/site/wwwroot/media/{sample or sample_1}/original/sample.png
-#         with open(original_path, 'wb+') as f:                                       # Save user uploaded image to the original image folder, e.g. save to /home/site/wwwroot/media/{sample or sample_1}/original/sample.png
-#             for chunk in img.chunks():
-#                 f.write(chunk)
-
-#         print(f"Image successfully uploaded: {img.name}")
-#         print(f"Uploaded image saved to {original_path}")
-
-#         return JsonResponse({'image_url': _to_media_url(original_path)})            # Return original image URL
-
-#     return JsonResponse({'error': 'Invalid upload'}, status=400)                    # Return error if not POST or no file
 @csrf_exempt
 def upload_image(request):
     """
@@ -852,19 +934,10 @@ def _to_media_url(abs_path: str) -> str:
 # ---------------------------
 @csrf_exempt
 def reset_media(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
-    root = _media_root()
-    for child in os.listdir(root):
-        path = os.path.join(root, child)
-        try:
-            if os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
-            else:
-                os.remove(path)
-        except Exception:
-            logger.warning("failed to remove %s", path, exc_info=True)
-    return JsonResponse({'ok': True})
+    return JsonResponse({
+        "ok": True,
+        "message": "reset_media disabled in local persistent mode"
+    })
 
 
 

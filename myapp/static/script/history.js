@@ -120,38 +120,59 @@ export function initHistoryHandlers(historyStack) {
     });
 
     window.viewer.addOnceHandler('open', () => {
+      const vp = window.viewer.viewport;
+      vp.fitBounds(vp.getHomeBounds(), true);
+      window.zoomFloor = vp.getHomeZoom();
+      
       $('#progress-overlay1').hide();
 
-      window.bboxData = item.boxes.slice();
+      // restore bbox
+      window.bboxData = Array.isArray(item.boxes) ? item.boxes.slice() : [];
 
       clearBoxes();
       drawBbox(window.bboxData);
 
-      if (window.chartRefs && window.chartRefs.length) {
-        window.chartRefs.forEach((chart, i) => {
-          initCheckboxes(window.bboxData, chart);
-          $('#checkbox_All').prop('checked', true);
-          $('#Checkbox_R, #Checkbox_H, #Checkbox_B, #Checkbox_A, #Checkbox_RD, #Checkbox_HR').prop('checked', true);
-          showAllBoxes();
+            // rebuild all chart wrappers every time
+      document.querySelectorAll('.barChart-wrapper').forEach(w => w.remove());
+      window.chartRefs = [];
 
-          if (i === 0) {
-            updateChart(window.bboxData, chart);
-          } else {
-            chart.data.datasets[0].data = [0,0,0,0,0,0];
-            chart.update();
+      const c1 = addBarChart('barChart-wrappers');
+      if (c1) window.chartRefs.push(c1);
 
-            const panel = document.getElementById(`roi-container${i+1}`);
-            if (panel) {
-              $(panel).find('.roi-checkbox').prop('checked', false);
-            }
-          }
-        });
+      const c2 = addBarChart('barChart-wrappers1');
+      if (c2) window.chartRefs.push(c2);
 
-        if (typeof window.renderROIList === 'function') window.renderROIList();
-      } else {
-        window.chartRefs = [];
-        const c1 = addBarChart();
-        window.chartRefs.push(c1);
+      // bind checkbox logic to full-image chart
+      if (c1) {
+        initCheckboxes(window.bboxData, c1);
+      }
+
+      // initCheckboxes() 會把 checkbox 清空，所以要在它後面再設回全選
+      $('#checkbox_All').prop('checked', true);
+      $('#Checkbox_R, #Checkbox_H, #Checkbox_B, #Checkbox_A, #Checkbox_RD, #Checkbox_HR')
+        .prop('checked', true);
+
+      // show all boxes after redraw + checkbox reset
+      showAllBoxes();
+
+      // full image chart should show actual counts
+      if (c1) {
+        updateChart(window.bboxData, c1);
+      }
+
+      // roi chart starts empty
+      if (c2) {
+        c2.data.datasets[0].data = [0,0,0,0,0,0];
+        c2.update();
+      }
+
+      const panel2 = document.getElementById('roi-container2');
+      if (panel2) {
+        $(panel2).find('.roi-checkbox').prop('checked', false);
+      }
+
+      if (typeof window.renderROIList === 'function') {
+        window.renderROIList();
       }
     });
   }

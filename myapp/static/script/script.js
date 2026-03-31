@@ -63,12 +63,50 @@ import html2canvas from 'https://cdn.skypack.dev/html2canvas';
     initROI();
 
     // ──────── Initialize sub‐modules ────────
-    initProcess(window.bboxData, historyStack, { get value(){ return window.barChart; }, set value(v){ window.barChart = v; } });
-    updateHistoryUI(historyStack);
-    initHistoryHandlers(historyStack);
+    async function loadSidebarItemsFromServer(historyStack) {
+      try {
+        const res = await fetch(LIST_SIDEBAR_ITEMS_URL, {
+          method: 'GET',
+          cache: 'no-store'
+        });
 
-    updateProjectsUI(historyStack);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Failed to load sidebar items');
+        }
+
+        historyStack.length = 0;
+
+        (data.items || []).forEach(item => {
+          historyStack.push({
+            dir: item.dir,
+            name: item.name || item.dir,
+            projectName: item.projectName || null,
+            displayUrl: item.displayUrl || '',
+            boxes: Array.isArray(item.boxes) ? item.boxes : [],
+            origSize: item.origSize || null,
+            dispSize: item.dispSize || null,
+            demo: !!item.demo
+          });
+        });
+
+      } catch (err) {
+        console.error('loadSidebarItemsFromServer failed:', err);
+      }
+    }
+
+    initProcess(window.bboxData, historyStack, { get value(){ return window.barChart; }, set value(v){ window.barChart = v; } });
+    initHistoryHandlers(historyStack);
     initProjectHandlers(historyStack);
+
+    (async () => {
+      await loadSidebarItemsFromServer(historyStack);
+      updateHistoryUI(historyStack);
+      await updateProjectsUI(historyStack);
+    })();
+
+    
 
     // Theme toggle
     const toggle = document.getElementById('theme-toggle');
