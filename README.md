@@ -38,7 +38,7 @@ StainAI_Viewer/
 ├── media/
 │   └── images/
 │
-├── your_app/
+├── myapp/
 │   ├── views.py
 │   ├── models.py
 │   ├── method/
@@ -53,7 +53,7 @@ StainAI_Viewer/
 
 ## ⚙️ Installation
 
-### 1️⃣ Clone repository
+### 1️⃣ Clone Repository
 
 ```
 git clone https://github.com/PathoRadi/StainAI_Viewer_local.git
@@ -61,34 +61,89 @@ git clone https://github.com/PathoRadi/StainAI_Viewer_local.git
 
 ---
 
-### 2️⃣ Install dependencies
+### 2️⃣ Create a Conda Environment
 
+Install Anaconda:
+  👉 https://www.anaconda.com/download
+
+Open Anaconda Prompt to create a new environment
+```
+conda create -n <your environment name> python=3.9
+```
+- Replace `<your environment name>` with your preferred environment name
+- `python=3.9` → pins the Python version (you can choose 3.8, 3.10, etc.)
+
+---
+
+### 3️⃣ Install dependencies
+
+Activate your environment (If you don't actiavate any environment the default environment is base)
+```
+conda activate <your environment name>
+```
+
+Change to the project directory where `requirements.txt` is located:
+#### Example
+```
+cd "D:\github\StainAI_Viewer_local"
+```
+- To obtain the path, right-click the folder and select "Copy as path".
+
+Install dependencies
 ```
 pip install -r requirements.txt
 ```
 
 ---
 
-### 3️⃣ Install PyTorch (GPU)
+### 5️⃣ Install PyTorch (GPU)
 
-> ⚠️ Choose the correct CUDA version
+Please copy the command from the official website:
 
-For CUDA 11.8:
+👉 https://pytorch.org/
+
+Select:
+- OS: (Windows/Linux/Mac)
+- Package: Pip
+- Language: Python
+- Compute Platform: CUDA12.6/CUDA12.8/CUDA13
+
+#### Example (CUDA 12.6):
 
 ```
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
 ---
 
-### 4️⃣ Install libvips (Required)
+###  Install libvips (Required)
 
 #### Windows
 
-Download from:
-https://github.com/libvips/libvips/releases
+##### Step 1
+- Download from: https://github.com/libvips/libvips/releases
+- Click the link under `Windows binaries here:`
+- Find file `vips-dev-w64-web-8.xx.x.zip` and download it
+- Unzip `vips-dev-w64-web-8.xx.x.zip`
+- Move `vips-dev-8.18` to `C Drive` and change name to `vips`
 
-Add to system PATH.
+##### Step 2
+- Windows search `Edit the system environment variables`
+- Click `Environment Variables...`
+- System variables → Path → Edit
+- Add a new line `C:\vips\bin` and click `OK`→`OK`→`OK`
+
+##### Step 3
+- Activate your environment
+```
+conda activate <your environment name>
+```
+- Install pyvips
+```
+pip install pyvips
+```
+
+<br>
 
 #### Mac
 
@@ -106,6 +161,14 @@ sudo apt install libvips
 
 ## ▶️ Run the Server
 
+Open `StainAI_Viewer_local` in your IDE(Visual Studio Code or PyCharm)
+
+Activate your environment
+```
+conda activate <your environment name>
+```
+
+Run it
 ```
 python manage.py runserver
 ```
@@ -118,19 +181,6 @@ http://127.0.0.1:8000
 
 ---
 
-## 🔄 Workflow
-
-1. Upload image
-2. Adjust preprocessing parameters (gamma, gain, p_low, p_high)
-3. Run detection
-4. View results:
-
-   * Annotated image
-   * JSON output
-   * Statistics chart
-
----
-
 ## 📦 Output
 
 Each image folder contains:
@@ -139,10 +189,11 @@ Each image folder contains:
 original/
 gray/
 patches/
+original_mmap/
+    └── xxx_mmap.tif
 result/
-    ├── *_results.json
-    ├── annotated.png
-    └── full_chart.png
+    ├── xxx_results.json
+    └── xxx_chart.png
 ```
 
 ---
@@ -163,14 +214,6 @@ result/
 * OpenCV
 * PyVips
 * NumPy / Pillow
-
----
-
-## 📌 TODO (optional)
-
-* [ ] Azure Blob integration
-* [ ] User authentication (SSO)
-* [ ] ROI-based statistics UI
 
 ---
 
