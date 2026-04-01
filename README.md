@@ -132,7 +132,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 ##### Stage 2
 - Windows search `Edit the system environment variables`
 - Click `Environment Variables...`
-- System variables → Path → Edit
+- `System variables` → `Path` → `Edit`
 - Add a new line `C:\vips\bin` and click `OK`→`OK`→`OK`
 
 ##### Stage 3
