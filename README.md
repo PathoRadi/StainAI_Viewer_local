@@ -55,9 +55,12 @@ StainAI_Viewer/
 
 ### 1️⃣ Clone Repository
 
+Click `Code` → `Download Zip`, or
+
 ```
 git clone https://github.com/PathoRadi/StainAI_Viewer_local.git
 ```
+
 
 ---
 
