@@ -122,20 +122,20 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 #### Windows
 
-##### Step 1
+##### Stage 1
 - Download from: https://github.com/libvips/libvips/releases
 - Click the link under `Windows binaries here:`
 - Find file `vips-dev-w64-web-8.xx.x.zip` and download it
 - Unzip `vips-dev-w64-web-8.xx.x.zip`
 - Move `vips-dev-8.18` to `C Drive` and change name to `vips`
 
-##### Step 2
+##### Stage 2
 - Windows search `Edit the system environment variables`
 - Click `Environment Variables...`
 - System variables → Path → Edit
 - Add a new line `C:\vips\bin` and click `OK`→`OK`→`OK`
 
-##### Step 3
+##### Stage 3
 - Activate your environment
 ```
 conda activate <your environment name>
