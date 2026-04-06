@@ -170,6 +170,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
   let previewBase          = null;
   let previewBusy          = false;
   let previewTimer         = null;
+  let previewFluoChannelInfo = null;
 
   const settingsLeft = document.querySelector('.settings-left');
 
@@ -509,7 +510,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       // 這樣比先完整 decode 再縮更省
       let probe = await createImageBitmap(blob);
 
-      const previewMaxSide = 10000;   // 建議 3000~4000
+      const previewMaxSide = 8000;   // 建議 3000~4000
       const scale = Math.min(1, previewMaxSide / Math.max(probe.width, probe.height));
       const w = Math.max(1, Math.round(probe.width * scale));
       const h = Math.max(1, Math.round(probe.height * scale));
@@ -550,31 +551,6 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     }
   }
 
-  // function detectModeFromPreviewBase(previewBase, thr = 110) {
-  //   const { w, h, rgb } = previewBase;
-  //   const b = Math.max(1, Math.floor(Math.min(w, h) * 0.06));
-
-  //   let sum = 0, cnt = 0;
-
-  //   // sample border: top, bottom, left, right
-  //   const addPixel = (x, y) => {
-  //     const idx = (y * w + x) * 4;
-  //     const R = rgb[idx], G = rgb[idx + 1], B = rgb[idx + 2];
-  //     const luma = 0.2126 * R + 0.7152 * G + 0.0722 * B;
-  //     sum += luma; cnt++;
-  //   };
-
-  //   // top & bottom
-  //   for (let y = 0; y < b; y++) for (let x = 0; x < w; x++) addPixel(x, y);
-  //   for (let y = h - b; y < h; y++) for (let x = 0; x < w; x++) addPixel(x, y);
-
-  //   // left & right
-  //   for (let y = 0; y < h; y++) for (let x = 0; x < b; x++) addPixel(x, y);
-  //   for (let y = 0; y < h; y++) for (let x = w - b; x < w; x++) addPixel(x, y);
-
-  //   const bg = cnt ? (sum / cnt) : 255;
-  //   return (bg < thr) ? 'fluorescence' : 'brightfield';
-  // }
   function detectModeFromPreviewBase(previewBase, thr = 110) {
     const { w, h, rgb } = previewBase;
 
@@ -696,12 +672,59 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     return arr[idx];
   }
 
+  function selectFluorescenceChannelFromPreviewBase(previewBase) {
+    const { w, h, rgb } = previewBase;
+    const n = w * h;
+
+    const rVals = new Float32Array(n);
+    const gVals = new Float32Array(n);
+    const bVals = new Float32Array(n);
+
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      rVals[i] = rgb[j] / 255.0;
+      gVals[i] = rgb[j + 1] / 255.0;
+      bVals[i] = rgb[j + 2] / 255.0;
+    }
+
+    const scoreOf = (vals) => {
+      const p995 = percentileFromSample(vals, 99.5);
+      const med  = percentileFromSample(vals, 50.0);
+      return p995 - med;
+    };
+
+    const rScore = scoreOf(rVals);
+    const gScore = scoreOf(gVals);
+    const bScore = scoreOf(bVals);
+
+    let idx = 0;
+    let best = rScore;
+
+    if (gScore > best) {
+      idx = 1;
+      best = gScore;
+    }
+    if (bScore > best) {
+      idx = 2;
+      best = bScore;
+    }
+
+    return {
+      idx,
+      name: ['red', 'green', 'blue'][idx],
+      scores: {
+        red: rScore,
+        green: gScore,
+        blue: bScore
+      }
+    };
+  }
+
   function scheduleRealtimePreview() {
     // debounce：滑動時不要每一個 input 都 full compute
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       renderRealtimePreview();
-    }, 30);
+    }, 120);
   }
 
   function renderRealtimePreview() {
@@ -726,14 +749,29 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       const n = w * h;
       const x01 = new Float32Array(n);
 
-      // 先做 backend 同款 x01
+      let fluoChannelInfo = null;
+      if (mode === 'fluorescence') {
+        fluoChannelInfo = previewFluoChannelInfo;
+
+        if (!fluoChannelInfo) {
+          fluoChannelInfo = selectFluorescenceChannelFromPreviewBase(previewBase);
+          previewFluoChannelInfo = fluoChannelInfo;
+        }
+      }
+
       for (let i = 0, j = 0; i < n; i++, j += 4) {
         const R01 = rgb[j] / 255.0;
         const G01 = rgb[j + 1] / 255.0;
         const B01 = rgb[j + 2] / 255.0;
 
         if (mode === 'fluorescence') {
-          x01[i] = G01;
+          if (fluoChannelInfo.idx === 0) {
+            x01[i] = R01;
+          } else if (fluoChannelInfo.idx === 1) {
+            x01[i] = G01;
+          } else {
+            x01[i] = B01;
+          }
         } else {
           const L01 = 0.2126 * R01 + 0.7152 * G01 + 0.0722 * B01;
           x01[i] = 1.0 - L01;
@@ -805,34 +843,51 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     }
   }
 
-
   function bindPreviewControls() {
     // slider -> params
     const onSlider = () => {
       if (!pendingParams) pendingParams = defaultParams();
 
-      pendingParams.gamma  = clamp(parseFloat(sGamma?.value ?? 1), 0, 10.0);
-      pendingParams.gain   = clamp(parseFloat(sGain?.value  ?? 1), 0, 10.0);
+      pendingParams.gamma  = clamp(parseFloat(sGamma?.value ?? 1), 0.1, 2.5);
+      pendingParams.gain   = clamp(parseFloat(sGain?.value  ?? 1), 0.1, 5.0);
       pendingParams.p_low  = clamp(parseFloat(sPLow?.value  ?? 0), 0, 100);
       pendingParams.p_high = clamp(parseFloat(sPHigh?.value ?? 100), 0, 100);
 
       enforceLowHigh();
-      syncUIFromParams();          // ✅ 立刻把右側 input 跟著更新
-      scheduleRealtimePreview();   // ✅ preview 跟著變
+      syncUIFromParams();
+      scheduleRealtimePreview();
     };
 
     [sGamma, sGain, sPLow, sPHigh].filter(Boolean)
       .forEach(el => el.addEventListener('input', onSlider));
 
-    // input -> params
-    const onValueInput = (e) => {
-      if (!pendingParams) pendingParams = defaultParams();
-
+    // input: typing only, do NOT render preview yet
+    const onValueTyping = (e) => {
       const el = e.target;
+      const raw = String(el.value ?? '');
+
+      // 使用者正在清空 / 編輯時，不要強制改值、不要更新 preview
+      if (raw.trim() === '') {
+        return;
+      }
+    };
+
+    // input: commit on blur / change / Enter
+    const commitValueInput = (el) => {
+      if (!pendingParams) pendingParams = defaultParams();
+      if (!el) return;
+
       const raw = String(el.value ?? '').trim().replace(',', '.');
+
+      // 若使用者清空後直接離開，恢復目前已 commit 的值，不重算
+      if (raw === '') {
+        syncUIFromParams();
+        return;
+      }
 
       const num = parseFloat(raw);
       if (!Number.isFinite(num)) {
+        syncUIFromParams();
         return;
       }
 
@@ -842,35 +897,42 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       if (el === iPHigh) pendingParams.p_high= clamp(num, 0, 100);
 
       enforceLowHigh();
-
       syncUIFromParams();
       scheduleRealtimePreview();
     };
 
     [iGamma, iGain, iPLow, iPHigh].filter(Boolean).forEach(el => {
-      el.addEventListener('input', onValueInput);
+      // typing 中不更新 preview
+      el.addEventListener('input', onValueTyping);
 
-      el.addEventListener('change', () => {
-        if (!pendingParams) return;
-        syncUIFromParams();
-      });
-      el.addEventListener('blur', () => {
-        if (!pendingParams) return;
-        syncUIFromParams();
+      // 離開欄位 / change 時才 commit
+      el.addEventListener('change', () => commitValueInput(el));
+      el.addEventListener('blur', () => commitValueInput(el));
+
+      // Enter 時立即 commit
+      el.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitValueInput(el);
+          el.blur();
+        }
       });
 
-      // 防止 pan/zoom 攪亂 input 的 focus
-      ['keydown','keypress','keyup','mousedown','click'].forEach(evt => {
+      // 其他事件照樣 stopPropagation，避免干擾 pan/zoom
+      ['keypress', 'keyup', 'mousedown', 'click'].forEach(evt => {
         el.addEventListener(evt, (e) => e.stopPropagation());
       });
     });
 
-    // resolution 不影響 preview，保留你現在的做法就好
+    // resolution 不影響 preview
     if (inpResolution) {
       inpResolution.addEventListener('input', () => {
         if (!pendingParams) pendingParams = defaultParams();
         pendingParams.resolution = (inpResolution.value || '').trim();
       });
+
       ['keydown','keypress','keyup','mousedown','click'].forEach(evt => {
         inpResolution.addEventListener(evt, (e) => e.stopPropagation());
       });
@@ -1044,6 +1106,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
 
     pendingImageDir = null;
     pendingParams = null;
+    previewFluoChannelInfo = null;                 // new: reset fluorescence channel info when new upload starts
 
     // clear modal preview objUrl
     if (settingsPreviewImg) {
@@ -1131,6 +1194,12 @@ export function initProcess(bboxData, historyStack, barChartRef) {
         openSettingsModal(file?.name || '');
 
         if (ok) {
+          // renderRealtimePreview();
+          const mode = detectModeFromPreviewBase(previewBase, 110);
+          previewFluoChannelInfo = (mode === 'fluorescence')
+            ? selectFluorescenceChannelFromPreviewBase(previewBase)
+            : null;
+
           renderRealtimePreview();
         } else {
           console.warn('Server preview build failed, skip realtime preview.');
