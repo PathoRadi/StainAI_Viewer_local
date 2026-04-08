@@ -219,8 +219,6 @@ class GrayscaleConverter:
         lo = np.percentile(x, self.p_low)
         hi = np.percentile(x, self.p_high)
 
-        # lo = np.percentile(x01, self.p_low)
-        # hi = np.percentile(x01, self.p_high)
         if hi <= lo:
             hi = lo + 1e-6
         y = (x01 - lo) / (hi - lo)
@@ -271,24 +269,6 @@ class GrayscaleConverter:
         vals = np.concatenate([top.ravel(), bot.ravel(), left.ravel(), right.ravel()])
         return float(vals.mean())
 
-    # def auto_detect_mode(self, thr: float = 110.0) -> str:
-    #     """
-    #     Decide fluorescence vs brightfield based on border mean brightness.
-    #     Frontend uses threshold ~110 on 8-bit domain; we mirror it in float01 domain.
-    #     """
-    #     arr, is_rgb, dtype = self._read_keep_bit()
-
-    #     if is_rgb:
-    #         # use luma (same coefficients as frontend)
-    #         rgb01 = arr.astype(np.float32) / 255.0
-    #         L = 0.2126 * rgb01[:, :, 0] + 0.7152 * rgb01[:, :, 1] + 0.0722 * rgb01[:, :, 2]
-    #         bg01 = self._edge_bg_mean_0_1(L)
-    #     else:
-    #         gray01 = self._to_float01(arr, dtype=dtype)
-    #         bg01 = self._edge_bg_mean_0_1(gray01)
-
-    #     thr01 = float(thr) / 255.0
-    #     return "fluorescence" if bg01 < thr01 else "brightfield"
     def auto_detect_mode(self, thr: float = 110.0, max_side: int = 1024) -> str:
         """
         Decide fluorescence vs brightfield based on a SMALL preview image

@@ -25,16 +25,16 @@ class ImageResizer:
         out_name = root + "_resized" + ext_l
         out_path = os.path.join(self.output_dir, out_name)
 
-        # 依副檔名輸出
+        # Ouput format settings based on extension
         if ext_l in (".jpg", ".jpeg"):
-            # 如果有 alpha 先鋪白底，避免黑底透明問題
+            # If there's an alpha channel, flatten it against a white background before saving as JPEG
             if resized_image.hasalpha():
                 resized_image = resized_image.flatten(background=[255, 255, 255])
             resized_image.jpegsave(out_path, Q=90, optimize_coding=True, interlace=True)
         elif ext_l == ".png":
             resized_image.pngsave(out_path, compression=6)
         else:  # tif/tiff
-            # tiled + lzw 比較常見，讀起來也快
+            # tiled + lzw
             resized_image.tiffsave(out_path, compression="lzw", tile=True, tile_width=1024, tile_height=1024)
 
         print(f"Resized image saved at {out_path}")

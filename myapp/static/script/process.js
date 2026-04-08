@@ -176,7 +176,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
 
   const settingsPanZoom = settingsLeft
     ? makePanZoomController(settingsLeft, () => {
-        // 優先用 canvas（realtime preview 時它是可見的）
+        // Use canvas as primary preview if available, since it can be rendered faster and support pan/zoom better
         const canvasVisible = settingsCanvas && settingsCanvas.style.display !== 'none';
         if (canvasVisible) return settingsCanvas;
 
@@ -184,7 +184,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
         const imgVisible = settingsPreviewImg && settingsPreviewImg.style.visibility !== 'hidden';
         if (imgVisible) return settingsPreviewImg;
 
-        // 都看不到就回傳 canvas（避免 null）
+        // if neither is visible, return null to disable pan/zoom
         return settingsCanvas || settingsPreviewImg;
       })
     : null;
@@ -247,7 +247,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     applyParamsToUI(pendingParams);
     syncAllRangeFills();
 
-    // 方法二：一律用 backend 回傳的小圖 / display 圖
+    // Method 2: use global vars set by Django template (previewUrl, displayUrl, imgPath) to set preview image src
     const serverUrl = window.previewUrl || window.displayUrl || window.imgPath || '';
 
     if (settingsPreviewImg) {
@@ -376,21 +376,21 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     const val = parseFloat(el.value || 0);
     const pct = ((val - min) / (max - min)) * 100;
 
-    // 用 CSS 變數控制填滿
+    // Update CSS variable for fill percentage
     el.style.setProperty('--pct', `${pct}%`);
   }
 
-  // 把所有 slider 記下來（避免每次都 query）
+  // Initialize all range inputs and bind event listeners
   const rangeEls = Array.from(document.querySelectorAll('input.scrollbar[type="range"]'));
 
   function syncAllRangeFills(){
     rangeEls.forEach(paintRangeFill);
   }
 
-  // 一開始先畫一次
+  // Initial paint on page load (in case of non-default values)
   syncAllRangeFills();
 
-  // 使用者拖動時即時更新
+  // Bind input event to update fill on user interaction
   rangeEls.forEach(el => {
     el.addEventListener('input', () => paintRangeFill(el));
   });
@@ -476,7 +476,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     if (sPLow)  sPLow.value  = pendingParams.p_low;
     if (sPHigh) sPHigh.value = pendingParams.p_high;
 
-    // params -> value input (不要在使用者打字時覆蓋)
+    // params -> value input (without overwriting if user is currently typing in that input)
     const setIfNotTyping = (el, v) => {
       if (!el) return;
       if (document.activeElement === el) return; // ✅ typing: skip overwrite
@@ -506,11 +506,11 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     try {
       const blob = await fetch(blobUrl).then(r => r.blob());
 
-      // 先試著直接要求縮小版 bitmap
-      // 這樣比先完整 decode 再縮更省
+      // Use createImageBitmap with resizing options to get a smaller preview directly from the blob
+      // This is more efficient than loading the full image and resizing in canvas, especially for large images
       let probe = await createImageBitmap(blob);
 
-      const previewMaxSide = 10000;   // 建議 3000~4000
+      const previewMaxSide = 10000;   
       const scale = Math.min(1, previewMaxSide / Math.max(probe.width, probe.height));
       const w = Math.max(1, Math.round(probe.width * scale));
       const h = Math.max(1, Math.round(probe.height * scale));
@@ -525,7 +525,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
           resizeQuality: 'high'
         });
       } catch (e) {
-        // 某些瀏覽器如果不支援 resize 參數，就 fallback
+        // fallback for browsers that don't support createImageBitmap resizing options
         bmp = await createImageBitmap(blob);
       }
 
@@ -778,7 +778,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
         }
       }
 
-      // 跟 backend 對齊：先背景校正
+      // first background correction, then percentile: this order is more robust for images with strong background (e.g. brightfield with uneven illumination)
       const corrected01 = backgroundCorrect01(x01, w, h, 101, 'subtract');
 
       // 再 percentile
@@ -866,7 +866,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       const el = e.target;
       const raw = String(el.value ?? '');
 
-      // 使用者正在清空 / 編輯時，不要強制改值、不要更新 preview
+      // allow empty for easier typing, but don't update params/preview until commit (blur/change/Enter)
       if (raw.trim() === '') {
         return;
       }
@@ -879,7 +879,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
 
       const raw = String(el.value ?? '').trim().replace(',', '.');
 
-      // 若使用者清空後直接離開，恢復目前已 commit 的值，不重算
+      // empty input means "user is still typing, don't commit yet", so just sync UI to reflect any auto-corrections (e.g. enforcing p_high > p_low) without updating params/preview
       if (raw === '') {
         syncUIFromParams();
         return;
@@ -902,14 +902,14 @@ export function initProcess(bboxData, historyStack, barChartRef) {
     };
 
     [iGamma, iGain, iPLow, iPHigh].filter(Boolean).forEach(el => {
-      // typing 中不更新 preview
+      // typing in value input doesn't immediately update preview, to avoid excessive computation and allow user to type freely (e.g. "0.0" → "0.00" or "1" → "1.5")
       el.addEventListener('input', onValueTyping);
 
-      // 離開欄位 / change 時才 commit
+      // but commit on blur / change, so that params and preview eventually update to reflect the final value user typed in
       el.addEventListener('change', () => commitValueInput(el));
       el.addEventListener('blur', () => commitValueInput(el));
 
-      // Enter 時立即 commit
+      // Enter key also commits the value and blurs the input (to trigger the same commit logic as blur event), for better keyboard accessibility
       el.addEventListener('keydown', (e) => {
         e.stopPropagation();
 
@@ -920,13 +920,13 @@ export function initProcess(bboxData, historyStack, barChartRef) {
         }
       });
 
-      // 其他事件照樣 stopPropagation，避免干擾 pan/zoom
+      // stop propagation of all events from these inputs to prevent accidental modal closure or other side effects while user is interacting with the controls
       ['keypress', 'keyup', 'mousedown', 'click'].forEach(evt => {
         el.addEventListener(evt, (e) => e.stopPropagation());
       });
     });
 
-    // resolution 不影響 preview
+    // resolution input: update pendingParams immediately on input, but don't trigger preview render (since it may require reloading the image at different resolution, which is more expensive than the other params)
     if (inpResolution) {
       inpResolution.addEventListener('input', () => {
         if (!pendingParams) pendingParams = defaultParams();
@@ -950,7 +950,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
 
   if (settingsCloseBtn) {
     settingsCloseBtn.addEventListener('click', () => {
-      // 若已 detection 完（在 history）不能刪，只關 modal
+      // case 1: already have detection result and user is just adjusting params for better preview → allow closing modal without deleting the uploaded image or resetting state
       const imageDir = pendingImageDir || ((window.imgPath || '').split('/')[3] || null);
 
       const histIdx = historyStack.findIndex(item => item.dir === imageDir);
@@ -959,7 +959,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
         return;
       }
 
-      // 未 detection：刪掉這次上傳 image（回到未上傳狀態）
+      // case 2: user just uploaded an image and is seeing the initial preview, but hasn't even gotten to the point of seeing detection results yet → in this case we can treat closing the modal as "cancel upload", so we should delete the uploaded image from server and reset state
       if (!imageDir) {
         closeSettingsModal();
         resetPendingUpload();
@@ -1346,7 +1346,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       return;
     }
 
-    // 如果在 history，沿用舊結果（跟你原本邏輯一樣）
+    // case 1: if we already have detection result for this image (e.g. user is just adjusting params and hasn't closed the modal yet), then just reuse it without calling backend again
     const histIdx = historyStack.findIndex(item =>
       item.dir === imageDir && (item.projectName || '') === ''
     );
@@ -1381,7 +1381,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       return;
     }
 
-    // 新偵測：關 modal → 進度條 → call backend
+    // case 2: otherwise we have to start detection job on backend and wait for result
     closeSettingsModal();
 
     window.viewer.open({ type: 'image', url: window.imgPath, buildPyramid: false });

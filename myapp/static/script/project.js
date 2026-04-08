@@ -197,14 +197,14 @@ export async function updateProjectsUI(historyStack) {
   const normalizedNames = projects.map(p => normalizeProjectName(p.project_name));
   const validProjectNames = new Set(normalizedNames);
 
-  // 清掉已不存在的 project expansion state
+  // Delete expanded state of projects that no longer exist
   _expandedProjects.forEach(name => {
     if (!validProjectNames.has(name)) {
       _expandedProjects.delete(name);
     }
   });
 
-  // 如果現在只有 1 個 project，預設展開
+  // If there's only one project, expand it by default
   if (normalizedNames.length === 1) {
     _expandedProjects.add(normalizedNames[0]);
   }
@@ -455,15 +455,6 @@ export function initProjectHandlers(historyStack) {
   });
 
   // expand / collapse one project
-  // $(document).on('click', '.project-item', function (e) {
-  //   e.stopPropagation();
-
-  //   const projectName = $(this).data('project');
-  //   const $list = $(`.project-images-list[data-project="${projectName}"]`);
-
-  //   $list.toggleClass('collapsed');
-  //   $(this).toggleClass('expanded');
-  // });
   $(document).on('click', '.project-item', function (e) {
     e.stopPropagation();
 
@@ -633,7 +624,7 @@ export function initProjectHandlers(historyStack) {
 
     const sourceProjectName = item.projectName || '';
 
-    // 同一個 project 不動作
+    // if dropped on the same project, do nothing
     if (sourceProjectName === targetProjectName) return;
 
     try {

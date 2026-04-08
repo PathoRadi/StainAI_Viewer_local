@@ -286,8 +286,8 @@ html, body { height: 100%; margin: 0; }
   border-radius: 10px;
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.10) inset,  /* bright inner border */
-    0 10px 30px rgba(0,0,0,0.55),            /* 面板投影 */
-    0 0 22px rgba(255,255,255,0.18);         /* 外圈柔光 */
+    0 10px 30px rgba(0,0,0,0.55),            /* shadow */
+    0 0 22px rgba(255,255,255,0.18);         /* subtle outer glow */
   backdrop-filter: blur(8px);
 }
 .grayscale-parameter-wrapper .settings-row{
@@ -341,7 +341,7 @@ html, body { height: 100%; margin: 0; }
   cursor: pointer;
   outline: none;
 
-  /* 用 --pct 控制填滿比例（JS 只要更新變數，不用動 background-size） */
+  /* use --pct to control fill percentage (JS only needs to update the variable, no need to modify background-size) */
   --pct: 0%;
 
   background: linear-gradient(
@@ -372,7 +372,6 @@ html, body { height: 100%; margin: 0; }
   border-radius: 999px;
 }
 
-/* Thumb - 改成細長短棒（不再像球） */
 /* Chrome / Edge */
 .scrollbar::-webkit-slider-thumb{
   -webkit-appearance: none;
@@ -429,7 +428,7 @@ html, body { height: 100%; margin: 0; }
 
 
 
-/* hover/focus 讓把手更清楚一點（可選） */
+/* hover/focus */
 .scrollbar:hover::-webkit-slider-thumb,
 .scrollbar:focus::-webkit-slider-thumb{
   box-shadow: 0 0 6px rgba(120,220,220,0.65);

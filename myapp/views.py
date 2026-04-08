@@ -96,7 +96,6 @@ def get_yolo_model():
             # Limit threads to avoid oversubscription
             torch.set_num_threads(min(4, os.cpu_count() or 1))
             weight_path = os.path.join(settings.BASE_DIR, 'model', 'MY12@640nFR.pt')
-            # weight_path = os.path.join(settings.BASE_DIR, 'model', 'MY12@640nFR.onnx')
             _YOLO_MODEL = YOLO(weight_path)
         except Exception:
             logger.exception("Failed to load YOLO model")
@@ -220,13 +219,11 @@ def _build_sidebar_item_from_image_dir(image_dir: str, image_name: str, project_
 
             try:
                 w, h = _image_size_wh(fallback_path)
-                # 前端目前 handleDetectionResult / history 用的順序是 [h, w]
                 disp_size = [h, w]
                 orig_size = [h, w]
             except Exception:
                 logger.exception("Failed to read fallback image size: %s", fallback_path)
 
-    # 3) name 顯示可直接用 image_name
     return {
         "dir": image_name,
         "name": image_name,
@@ -344,8 +341,6 @@ def upload_image(request):
         try:
             ow, oh = _image_size_wh(original_path)
 
-            # 方法二：upload 完就準備 preview/display image
-            # 大圖一律先做小圖給前端 preview 用
             if ow > 6000 or oh > 6000:
                 disp_path = DisplayImageGenerator(original_path, image_dir).generate_display_image()
                 preview_url = _to_media_url(disp_path)
@@ -467,7 +462,6 @@ def move_image_to_project(request):
 
         shutil.move(src_dir, dst_dir)
 
-        # 修正 _detect_result.json 內的 display_url
         result_path = os.path.join(dst_dir, "_detect_result.json")
         if os.path.exists(result_path):
             try:
@@ -659,7 +653,7 @@ def _run_detection_job(image_name: str, params: dict):
                 image_path=orig_path,
                 output_dir=orig_dir,
                 current_res=current_res,
-                target_res=0.464,  # 你 training 的 um/px
+                target_res=0.464,  # training scale
             ).resize()  # save to original/
         else:
             # if user doesn't provide resolution, skip resizing and use original image for the rest of the pipeline
@@ -1093,7 +1087,6 @@ def rename_project(request):
 
         shutil.move(old_dir, new_dir)
 
-        # 修正裡面每個 image 的 _detect_result.json
         for image_name in os.listdir(new_dir):
             image_dir = os.path.join(new_dir, image_name)
             if not os.path.isdir(image_dir):

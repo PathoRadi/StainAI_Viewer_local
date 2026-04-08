@@ -34,7 +34,7 @@ class DisplayImageGenerator:
         new_h = max(int(round(orig_h * scale)), 1)
         return new_w, new_h, scale
 
-    # -------- vips 優先路徑（快＆省記憶體）--------
+    # -------- vips (Priority)--------
     def _generate_with_vips(self, src_path, dst_path):
         header = pyvips.Image.new_from_file(
             src_path,
@@ -45,7 +45,6 @@ class DisplayImageGenerator:
         orig_w, orig_h = int(header.width), int(header.height)
         new_w, new_h, scale = self._calc_target_size(orig_w, orig_h)
 
-        # 不需要縮放，直接轉存成 JPEG display image
         if scale >= 1.0:
             im = pyvips.Image.new_from_file(src_path, access="sequential")
 
@@ -67,7 +66,6 @@ class DisplayImageGenerator:
             im.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
             return dst_path
 
-        # 需要縮小：thumbnail 最省資源
         thumb = pyvips.Image.thumbnail(
             src_path,
             new_w,
@@ -93,7 +91,7 @@ class DisplayImageGenerator:
         thumb.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
         return dst_path
 
-    # -------- PIL 後援 --------
+    # -------- PIL as backup --------
     def _generate_with_pil(self, src_path, dst_path):
         with Image.open(src_path) as im:
             orig_w, orig_h = im.size
@@ -125,7 +123,6 @@ class DisplayImageGenerator:
     def generate_display_image(self):
         """
         Resize the image to fit within max_side and save to output_dir/resized.
-        優先 pyvips；若失敗，回退至 PIL。
         """
         resized_dir = os.path.join(self.output_dir, "resized")
         os.makedirs(resized_dir, exist_ok=True)

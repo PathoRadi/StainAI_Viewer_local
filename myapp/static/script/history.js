@@ -147,7 +147,7 @@ export function initHistoryHandlers(historyStack) {
         initCheckboxes(window.bboxData, c1);
       }
 
-      // initCheckboxes() 會把 checkbox 清空，所以要在它後面再設回全選
+      // initCheckboxes() will uncheck all, so we need to reset to all checked after redraw
       $('#checkbox_All').prop('checked', true);
       $('#Checkbox_R, #Checkbox_H, #Checkbox_B, #Checkbox_A, #Checkbox_RD, #Checkbox_HR')
         .prop('checked', true);
@@ -193,7 +193,7 @@ export function initHistoryHandlers(historyStack) {
     wrapper.classList.toggle('expanded', !collapsed);
   }
 
-  // 預設展開
+  // default to expanded on load (matches your screenshot); user can toggle to collapse
   setHistoryCollapsed(false);
 
   toggleBtn?.addEventListener('click', () => {
@@ -216,7 +216,7 @@ export function initHistoryHandlers(historyStack) {
     const item = historyStack[idx];
     if (!item) return;
 
-    // 只允許拖還在 Your Images 的 image
+    // only allow dragging if it's not already in a project (project items are shown in Projects section, not history)
     if (item.projectName) {
       e.preventDefault();
       return;
@@ -261,7 +261,7 @@ export function initHistoryHandlers(historyStack) {
 
     const sourceProjectName = item.projectName || '';
 
-    // 已經在 Your Images 就不用動
+    // if the item is already in images (not in a project), do nothing on drop (no move needed)
     if (!sourceProjectName) return;
 
     try {

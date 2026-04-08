@@ -75,19 +75,6 @@ class CutImage:
         ys = _build_positions(H, self.patch_size, self.overlap)
         cols, rows = len(xs), len(ys)
 
-        # def _save_one(y, x):
-        #     # Shrink to remaining size at borders (do not move start positions back to avoid duplicate patches)
-        #     w = min(self.patch_size, max(W - x, 0))
-        #     h = min(self.patch_size, max(H - y, 0))
-        #     if w <= 0 or h <= 0:
-        #         return None
-        #     tile = im.extract_area(int(x), int(y), int(w), int(h))
-        #     # Convert to 8-bit (to avoid implicit conversion when saving high bit-depth images)
-        #     if tile.format != "uchar":
-        #         tile = tile.cast("uchar")
-        #     fp = os.path.join(out_dir, f"patch_{y}_{x}.png")
-        #     tile.pngsave(fp, compression=1)
-        #     return fp
         def _save_one(y, x):
             w = min(self.patch_size, max(W - x, 0))
             h = min(self.patch_size, max(H - y, 0))
