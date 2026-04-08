@@ -11,7 +11,6 @@ import numpy as np
 import tifffile as tiff
 import time
 import threading
-import uuid
 from json import JSONDecodeError
 from typing import List, Optional, Tuple, Literal, Union
 from io import BytesIO
@@ -706,8 +705,10 @@ def _run_detection_job(image_name: str, params: dict):
             write_u8_png=False
         )
         gcvt.convert_to_grayscale_auto()
+        del gcvt
 
         gc.collect()
+        time.sleep(1.0)
         gray_stage_end = time.perf_counter()
         logger.info("Grayscale conversion done")
 

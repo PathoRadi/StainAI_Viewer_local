@@ -3,11 +3,17 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image, ImageFile
+from sympy import im
 
 # pyvips is prioritized if available, for memory efficiency and speed
 try:
     import pyvips
     _HAS_VIPS = True
+    try:
+        pyvips.cache_set_max(0)          # reduce operation cache memory
+        # pyvips.concurrency_set(1)        # force libvips to single-thread
+    except Exception:
+        pass
 except Exception:
     _HAS_VIPS = False
 
@@ -69,22 +75,40 @@ class CutImage:
         ys = _build_positions(H, self.patch_size, self.overlap)
         cols, rows = len(xs), len(ys)
 
+        # def _save_one(y, x):
+        #     # Shrink to remaining size at borders (do not move start positions back to avoid duplicate patches)
+        #     w = min(self.patch_size, max(W - x, 0))
+        #     h = min(self.patch_size, max(H - y, 0))
+        #     if w <= 0 or h <= 0:
+        #         return None
+        #     tile = im.extract_area(int(x), int(y), int(w), int(h))
+        #     # Convert to 8-bit (to avoid implicit conversion when saving high bit-depth images)
+        #     if tile.format != "uchar":
+        #         tile = tile.cast("uchar")
+        #     fp = os.path.join(out_dir, f"patch_{y}_{x}.png")
+        #     tile.pngsave(fp, compression=1)
+        #     return fp
         def _save_one(y, x):
-            # Shrink to remaining size at borders (do not move start positions back to avoid duplicate patches)
             w = min(self.patch_size, max(W - x, 0))
             h = min(self.patch_size, max(H - y, 0))
             if w <= 0 or h <= 0:
                 return None
+
             tile = im.extract_area(int(x), int(y), int(w), int(h))
-            # Convert to 8-bit (to avoid implicit conversion when saving high bit-depth images)
+
             if tile.format != "uchar":
                 tile = tile.cast("uchar")
+
             fp = os.path.join(out_dir, f"patch_{y}_{x}.png")
             tile.pngsave(fp, compression=1)
+
+            # explicitly drop references ASAP
+            del tile
             return fp
 
         # libvips is already parallel; use a few external threads to speed up I/O/encoding
-        max_workers = min((os.cpu_count() or 8), 8)
+        # max_workers = min((os.cpu_count() or 8), 8)
+        max_workers = 2
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
             futs = [ex.submit(_save_one, y, x) for y in ys for x in xs]
             for _ in as_completed(futs):

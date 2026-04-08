@@ -510,7 +510,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       // 這樣比先完整 decode 再縮更省
       let probe = await createImageBitmap(blob);
 
-      const previewMaxSide = 8000;   // 建議 3000~4000
+      const previewMaxSide = 10000;   // 建議 3000~4000
       const scale = Math.min(1, previewMaxSide / Math.max(probe.width, probe.height));
       const w = Math.max(1, Math.round(probe.width * scale));
       const h = Math.max(1, Math.round(probe.height * scale));
@@ -1016,6 +1016,7 @@ export function initProcess(bboxData, historyStack, barChartRef) {
       yolo: '50%',
       proc: '75%',
       done: '100%',
+      
       error:'100%'
     };
     const stageIdx = { idle:1, gray:1, cut:2, yolo:3, proc:4, done:5, error:5 };

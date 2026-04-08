@@ -1,4 +1,3 @@
-# displayed_image.py
 import os
 
 try:
@@ -9,99 +8,100 @@ except Exception:
 
 from PIL import Image
 
+
 class DisplayImageGenerator:
-    def __init__(self, image_path, output_dir, resize_factor=0.5):
+    def __init__(self, image_path, output_dir, max_side=4000):
         """
-        Initialize the ImageResizer with the path to the image and output directory.
-        Arg:
+        Generate a smaller display / preview image for very large inputs.
+
+        Args:
             image_path: Path to the input image file.
-            output_dir: Directory where the resized image will be saved.
+            output_dir: Directory where the resized image folder will be created.
+            max_side:   Maximum allowed width/height of output image.
+                        Example: if original is 62459x40639 and max_side=4000,
+                        output becomes about 4000x2603.
         """
         self.image_path = image_path
         self.output_dir = output_dir
-        self.resize_factor = resize_factor
+        self.max_side = int(max_side)
+
+    def _calc_target_size(self, orig_w, orig_h):
+        if self.max_side <= 0:
+            raise ValueError("max_side must be > 0")
+
+        scale = min(1.0, self.max_side / float(max(orig_w, orig_h)))
+        new_w = max(int(round(orig_w * scale)), 1)
+        new_h = max(int(round(orig_h * scale)), 1)
+        return new_w, new_h, scale
 
     # -------- vips 優先路徑（快＆省記憶體）--------
     def _generate_with_vips(self, src_path, dst_path):
-        # 目標是「等比縮放」，維持你原本以 factor 計算新尺寸的邏輯
-        # 若 factor < 1，採用 thumbnail 路徑（不解整張大圖，最省資源）
-        # 若 factor >= 1，讀圖後用 resize（仍是串流）
-        # 輸出：JPEG(Q=90, progressive)
-        # 注意：如果有 alpha，先 flatten 到白底，保持和你原本 JPEG 的效果一致
-        # 同時確保最後是 8-bit uchar
-        if self.resize_factor <= 0:
-            raise ValueError("resize_factor must be > 0")
-
-        # 先試著只讀 header 拿原始尺寸（更省）
-        header = pyvips.Image.new_from_file(src_path, access="sequential", memory=False, fail=False)
+        header = pyvips.Image.new_from_file(
+            src_path,
+            access="sequential",
+            memory=False,
+            fail=False
+        )
         orig_w, orig_h = int(header.width), int(header.height)
-        new_w = max(int(orig_w * self.resize_factor), 1)
-        new_h = max(int(orig_h * self.resize_factor), 1)
+        new_w, new_h, scale = self._calc_target_size(orig_w, orig_h)
 
-        # factor < 1 用 thumbnail：一次性下採樣，避免全圖解碼
-        if self.resize_factor < 1.0:
-            # thumbnail_filename 在 libvips 內會做最佳化縮圖（含快速整數縮放 + 重採樣）
-            # 為保比例，指定較小邊的目標，以免變形
-            # 取決於原圖寬高比，vips 會等比縮放，之後若邊長有 1~2px 差距，一般可接受
-            # 若你嚴格要 (new_w, new_h) 精準像素，可改走一般 resize 分支
-            shrink_w = new_w
-            shrink_h = new_h
-            # 直接寫檔，不建大中間圖
-            # 先生成到暫存，再後處理 alpha/色彩
-            thumb = pyvips.Image.thumbnail(src_path, shrink_w, height=shrink_h, auto_rotate=True)
-            # 若含 alpha，先白底合成
-            if thumb.hasalpha():
-                thumb = thumb.flatten(background=[255, 255, 255])
+        # 不需要縮放，直接轉存成 JPEG display image
+        if scale >= 1.0:
+            im = pyvips.Image.new_from_file(src_path, access="sequential")
 
-            # 轉 8-bit
-            if thumb.format != "uchar":
-                thumb = thumb.cast("uchar")
+            if im.hasalpha():
+                im = im.flatten(background=[255, 255, 255])
 
-            # 轉到 sRGB（有些相片是帶 ICC 的，寫 JPEG 前轉到標準色域較穩）
-            if thumb.interpretation not in (pyvips.Interpretation.srgb, pyvips.Interpretation.B_W):
+            if im.format != "uchar":
+                im = im.cast("uchar")
+
+            if im.interpretation not in (
+                pyvips.Interpretation.srgb,
+                pyvips.Interpretation.B_W
+            ):
                 try:
-                    thumb = thumb.colourspace(pyvips.Interpretation.srgb)
+                    im = im.colourspace(pyvips.Interpretation.srgb)
                 except Exception:
                     pass
 
-            thumb.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
+            im.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
             return dst_path
 
-        # factor >= 1：需要放大（或等比=1）
-        im = pyvips.Image.new_from_file(src_path, access="sequential")
-        # 有 alpha 先白底 flatten
-        if im.hasalpha():
-            im = im.flatten(background=[255, 255, 255])
+        # 需要縮小：thumbnail 最省資源
+        thumb = pyvips.Image.thumbnail(
+            src_path,
+            new_w,
+            height=new_h,
+            auto_rotate=True
+        )
 
-        # 以縮放倍數處理（vips 的 resize 參數是「倍數」）
-        im = im.resize(self.resize_factor)
+        if thumb.hasalpha():
+            thumb = thumb.flatten(background=[255, 255, 255])
 
-        # 轉 8-bit
-        if im.format != "uchar":
-            im = im.cast("uchar")
+        if thumb.format != "uchar":
+            thumb = thumb.cast("uchar")
 
-        # 色彩到 sRGB（避免轉 JPEG 時出現怪色）
-        if im.interpretation not in (pyvips.Interpretation.srgb, pyvips.Interpretation.B_W):
+        if thumb.interpretation not in (
+            pyvips.Interpretation.srgb,
+            pyvips.Interpretation.B_W
+        ):
             try:
-                im = im.colourspace(pyvips.Interpretation.srgb)
+                thumb = thumb.colourspace(pyvips.Interpretation.srgb)
             except Exception:
                 pass
 
-        im.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
+        thumb.jpegsave(dst_path, Q=90, optimize_coding=True, interlace=True)
         return dst_path
 
-    # -------- PIL 後援（保持你原來的行為）--------
+    # -------- PIL 後援 --------
     def _generate_with_pil(self, src_path, dst_path):
         with Image.open(src_path) as im:
             orig_w, orig_h = im.size
-            new_w = max(int(orig_w * self.resize_factor), 1)
-            new_h = max(int(orig_h * self.resize_factor), 1)
+            new_w, new_h, _ = self._calc_target_size(orig_w, orig_h)
 
-            # 和你原本一致：小圖走 LANCZOS，大到超巨才退而求其次
             resample = Image.LANCZOS if max(orig_w, orig_h) <= 20000 else Image.BILINEAR
             im_resized = im.resize((new_w, new_h), resample=resample)
 
-            # JPEG 必須是 RGB；若有 alpha 一樣合成白底
             if im_resized.mode in ("RGBA", "LA", "P"):
                 bg = Image.new("RGB", im_resized.size, (255, 255, 255))
                 if im_resized.mode in ("RGBA", "LA"):
@@ -112,13 +112,19 @@ class DisplayImageGenerator:
             elif im_resized.mode != "RGB":
                 im_resized = im_resized.convert("RGB")
 
-            im_resized.save(dst_path, format="JPEG", quality=90, optimize=True, progressive=True)
+            im_resized.save(
+                dst_path,
+                format="JPEG",
+                quality=90,
+                optimize=True,
+                progressive=True
+            )
 
         return dst_path
 
     def generate_display_image(self):
         """
-        Resize the image by resize_factor and save to the output directory.
+        Resize the image to fit within max_side and save to output_dir/resized.
         優先 pyvips；若失敗，回退至 PIL。
         """
         resized_dir = os.path.join(self.output_dir, "resized")
@@ -131,7 +137,6 @@ class DisplayImageGenerator:
             try:
                 return self._generate_with_vips(self.image_path, out_path)
             except Exception:
-                # 某些編碼或奇怪 ICC/alpha 情況下，回退 PIL 以求穩
                 pass
 
         return self._generate_with_pil(self.image_path, out_path)

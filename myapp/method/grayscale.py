@@ -157,6 +157,45 @@ class GrayscaleConverter:
             self._input_dtype = np.uint8
             self._input_is_rgb = True
             return arr, True, np.uint8
+        
+    def _read_small_for_mode_detect(self, max_side: int = 1024):
+        """
+        Read a small downscaled version of the image for auto mode detection only.
+        This avoids loading the full-resolution image just to decide
+        fluorescence vs brightfield.
+        Returns:
+          arr: np.ndarray
+          is_rgb: bool
+          dtype: np.uint8
+        """
+        with Image.open(self.img_path) as im:
+            orig_w, orig_h = im.size
+
+            scale = min(1.0, float(max_side) / float(max(orig_w, orig_h)))
+            new_w = max(1, int(round(orig_w * scale)))
+            new_h = max(1, int(round(orig_h * scale)))
+
+            if scale < 1.0:
+                resample = Image.BILINEAR if max(orig_w, orig_h) > 20000 else Image.LANCZOS
+                im = im.resize((new_w, new_h), resample=resample)
+
+            mode = im.mode
+
+            # grayscale small image
+            if mode in ("I;16", "I;16B", "I;16L"):
+                arr16 = np.array(im, dtype=np.uint16)
+                # for mode detection only, reduce to 8-bit to save memory
+                arr8 = (arr16 / 257.0 + 0.5).astype(np.uint8)
+                return arr8, False, np.uint8
+
+            if mode == "L":
+                arr = np.array(im, dtype=np.uint8)
+                return arr, False, np.uint8
+
+            # everything else -> RGB uint8
+            rgb = im.convert("RGB")
+            arr = np.asarray(rgb, dtype=np.uint8)
+            return arr, True, np.uint8
 
     def _to_float01(self, x: np.ndarray, dtype) -> np.ndarray:
         maxv = 65535.0 if dtype == np.uint16 else 255.0
@@ -232,15 +271,32 @@ class GrayscaleConverter:
         vals = np.concatenate([top.ravel(), bot.ravel(), left.ravel(), right.ravel()])
         return float(vals.mean())
 
-    def auto_detect_mode(self, thr: float = 110.0) -> str:
+    # def auto_detect_mode(self, thr: float = 110.0) -> str:
+    #     """
+    #     Decide fluorescence vs brightfield based on border mean brightness.
+    #     Frontend uses threshold ~110 on 8-bit domain; we mirror it in float01 domain.
+    #     """
+    #     arr, is_rgb, dtype = self._read_keep_bit()
+
+    #     if is_rgb:
+    #         # use luma (same coefficients as frontend)
+    #         rgb01 = arr.astype(np.float32) / 255.0
+    #         L = 0.2126 * rgb01[:, :, 0] + 0.7152 * rgb01[:, :, 1] + 0.0722 * rgb01[:, :, 2]
+    #         bg01 = self._edge_bg_mean_0_1(L)
+    #     else:
+    #         gray01 = self._to_float01(arr, dtype=dtype)
+    #         bg01 = self._edge_bg_mean_0_1(gray01)
+
+    #     thr01 = float(thr) / 255.0
+    #     return "fluorescence" if bg01 < thr01 else "brightfield"
+    def auto_detect_mode(self, thr: float = 110.0, max_side: int = 1024) -> str:
         """
-        Decide fluorescence vs brightfield based on border mean brightness.
-        Frontend uses threshold ~110 on 8-bit domain; we mirror it in float01 domain.
+        Decide fluorescence vs brightfield based on a SMALL preview image
+        instead of the full-resolution image, to reduce RAM usage.
         """
-        arr, is_rgb, dtype = self._read_keep_bit()
+        arr, is_rgb, dtype = self._read_small_for_mode_detect(max_side=max_side)
 
         if is_rgb:
-            # use luma (same coefficients as frontend)
             rgb01 = arr.astype(np.float32) / 255.0
             L = 0.2126 * rgb01[:, :, 0] + 0.7152 * rgb01[:, :, 1] + 0.0722 * rgb01[:, :, 2]
             bg01 = self._edge_bg_mean_0_1(L)
@@ -345,7 +401,7 @@ class GrayscaleConverter:
         return {"gray_path": main_path, "gray_u8_path": extra_u8, "mode": "brightfield"}
 
     def convert_to_grayscale_auto(self, thr: float = 110.0):
-        mode = self.auto_detect_mode(thr=thr)
+        mode = self.auto_detect_mode(thr=thr, max_side=1024)
         if mode == "fluorescence":
             return self.convert_to_grayscale_fluorescence()
         return self.convert_to_grayscale_brightfield()
